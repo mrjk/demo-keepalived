@@ -1,2 +1,4 @@
 ansible
+libvirt-python==9.2.0
+netaddr
 

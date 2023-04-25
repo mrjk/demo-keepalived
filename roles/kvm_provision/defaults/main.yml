@@ -1,0 +1,58 @@
+---
+# defaults file for kvm_provision
+vm_conf: {}
+
+# Default vm settings
+vm_state: runnnig # Or destroyed
+vm_name: vm
+vm_vcpus: 2
+vm_ram_mb: 512
+vm_net: default
+vm_ssh_key: /root/.ssh/id_rsa.pub
+vm_count: '-1'
+
+# mkpasswd --method=SHA-512 --rounds=4096
+# admin
+vm_root_pass: '$6$rounds=4096$wEFmSDztxclSunRn$fclPknz5.1JTWhSzS0.td/wANoyAzZ54U9QrpLx20B7pOrNdsmdIPSUzjtJJDtlVtg00M724JFQl.Oa1QCB0J/'
+
+
+cleanup_tmp: no
+libvirt_pool_dir: "/var/lib/libvirt/images"
+
+# defaults file for kvm_provision
+vm_image_url: https://download.fedoraproject.org/pub/fedora/linux/releases/34/Cloud/x86_64/images/Fedora-Cloud-Base-34-1.2.x86_64.qcow2
+vm_image_sha: sha256:b9b621b26725ba95442d9a56cbaa054784e0779a9522ec6eafff07c6e6f717ea
+
+# Default cloudinit
+vm_cloud_init:
+  manage_etc_hosts: True
+  preserve_hostname: True
+  hostname: "{{ _vm_name }}"
+  fqdn: "{{ _vm_name }}.sigec"
+  users:
+    - name: ops
+      shell: /bin/bash
+      passwd: "{{ vm_root_pass }}"
+      sudo:  ALL=(ALL) NOPASSWD:ALL
+      ssh_authorized_keys:
+        - "{{ lookup('ansible.builtin.file', vm_ssh_key) }}"
+  runcmd:
+    - hostnamectl set-hostname {{ _vm_name }}
+    - apt update
+    - apt install -y htop iftop tree psmisc bash-completion git curl wget 
+
+
+      # - curl -sL https://raw.githubusercontent.com/TheLocehiliosan/yadm/master/yadm | bash -s -- clone --bootstrap  https://github.com/were10/dotfiles-generic.git && bash
+
+
+# Auto default
+image_pool_dir: "{{ libvirt_pool_dir }}"
+vm_desc: "{{ vm_name }}"
+
+# Internal vars
+_vm_suffix: "{{ vm_count|int > 0 }}"
+_vm_count: "{{ _vm_suffix|ternary(vm_count, 1)|int + 1 }}"
+base_image_name: "{{ vm_image_url | split('/') | last }}"
+
+
+

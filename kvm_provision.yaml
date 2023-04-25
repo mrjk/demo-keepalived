@@ -1,26 +1,44 @@
+
+
 - name: Deploys VM based on cloud image
-  hosts: localhost
+  hosts: wks1
   gather_facts: yes
   become: yes
   vars:
-    pool_dir: "/var/lib/libvirt/images"
-    vm: f34-lab01
-    vcpus: 2
-    ram_mb: 2048
-    cleanup: no
-    net: default
-    ssh_pub_key: "/home/rgerardi/.ssh/id_rsa.pub"
+
+    vm_default:
+      # See: https://cloud.debian.org/images/cloud/bullseye/20230124-1270/
+      vm_image_url: "https://cloud.debian.org/images/cloud/bullseye/20230124-1270/debian-11-genericcloud-amd64-20230124-1270.qcow2"
+      vm_image_sha: sha512:7a7a546b9928f0d375c332a39db2d1af56fce3432b8a5dee0d4f71777efa7463a6b1fc797bcf3b12ca7d8f47d66824abbcbf0a0bdc94be5e90e5a90e8628fae6
+
+      vm_state: running
+        #vm_state: destroyed
+      vm_vcpus: 2
+      vm_ram_mb: 2048
+      cleanup: no
+      vm_net: default
+      vm_ssh_key: "/root/.ssh/id_rsa.pub"
+
+        #vm_count: -1
+
+
+    vms:
+      - vm_name: "test_ctrl"
+
+      - vm_name: "test_keepalived"
+        vm_count: 2
+
+      - vm_name: "test_apache"
+        vm_count: 3
 
   tasks:
-    - name: KVM Provision role
+
+    - name: "Deploy instances"
       include_role:
         name: kvm_provision
       vars:
-        libvirt_pool_dir: "{{ pool_dir }}"
-        vm_name: "{{ vm }}"
-        vm_vcpus: "{{ vcpus }}"
-        vm_ram_mb: "{{ ram_mb }}"
-        vm_net: "{{ net }}"
-        cleanup_tmp: "{{ cleanup }}"
-        ssh_key: "{{ ssh_pub_key }}"
+        vm_conf: "{{ vm_default | ansible.builtin.combine( instance ) }}"
+      loop: "{{ vms | flatten(levels=1) }}"
+      loop_control:
+        loop_var: instance
 

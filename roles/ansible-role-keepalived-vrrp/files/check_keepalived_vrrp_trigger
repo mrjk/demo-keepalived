@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Test Arguments
+if [ $# -ne 2 ] ; then
+	print "> Usage: vrrp_name vrrp_file"; exit 1
+fi
+
+# Do the file test
+T=$( find $2 -type f -uid 0 -gid 0 \! -perm -g=w \! -perm o=w | wc -l )
+if [[ $T -eq 1 ]]; then
+	echo "> Info: VRRP $1 disabled because trigger file $2 is found"; exit 2
+fi
+

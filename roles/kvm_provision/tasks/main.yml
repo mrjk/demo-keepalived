@@ -1,0 +1,120 @@
+---
+# tasks file for kvm_provision
+
+
+- name: Set facts
+  ansible.builtin.set_fact: "{{ item.key }}={{ item.value }}"
+  loop: "{{ vm_conf|dict2items }}"
+
+#
+#- name: INIT
+#  debug:
+#    #    msg: "_vm_count={{ _vm_count }} ({{ vm_count }})"
+#    msg: "{{ vm_conf }}"
+#
+#
+#
+#- name: Subloop
+#  debug:
+#    msg: "vm_name={{ vm_image_sha }} vm_count={{ vm_image_url }}"
+#      #msg: "vm_name={{ _vm_name }} vm_count={{ _vm_count }}"
+#      #var: vm_conf
+#  vars:
+#    _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+#  loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+
+
+
+# tasks file for kvm_provision
+- name: Ensure requirements in place
+  package:
+    name:
+      - libguestfs-tools
+      - python3-libvirt
+    state: present
+  become: yes
+
+
+
+- name: Get VMs list
+  community.libvirt.virt:
+    command: list_vms
+  register: existing_vms
+  changed_when: no
+
+
+- name: Create VM if not exists
+  block:
+
+  - name: Download base image
+    get_url:
+      url: "{{ vm_image_url }}"
+      dest: "{{ image_pool_dir }}/{{ base_image_name }}"
+      checksum: "{{ vm_image_sha }}"
+    when: "vm_state in ['running', 'present']"
+
+  - name: Create vm base system image
+    ansible.builtin.shell: >
+      qemu-img create 
+      -f qcow2
+      -b "{{ image_pool_dir }}/{{ base_image_name }}"
+      "{{ libvirt_pool_dir }}/{{ _vm_name }}.qcow2" &&
+      qemu-img resize "{{ libvirt_pool_dir }}/{{ _vm_name }}.qcow2" 20G
+
+    args:
+      creates: "{{ libvirt_pool_dir }}/{{ _vm_name }}.qcow2"
+    vars:
+      _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+    loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+    when: "vm_state in ['running', 'present']"
+
+  - name: Create cloudinit CD
+    ansible.builtin.shell: |
+      TMP_DIR=$(mktemp -d)
+      cd $TMP_DIR
+      echo "instance-id: iid-local01\nlocal-hostname: {{ _vm_name }}" > $TMP_DIR/meta-data
+      echo '#cloud-config\n{{ vm_cloud_init | to_nice_yaml }}' > $TMP_DIR/user-data
+      /usr/bin/genisoimage -output {{ libvirt_pool_dir }}/{{ _vm_name }}.iso -volid cidata -joliet -rock user-data meta-data
+
+    vars:
+      _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+    loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+    when: "vm_state in ['running', 'present']"
+
+      #- name: Define vm DEBUG
+      #  template:
+      #    src: vm-template.xml.j2
+      #    dest: "/tmp/{{ _vm_name}}.xml"
+      #      #when: "_vm_name not in existing_vms.list_vms"
+      #  vars:
+      #    _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+      #  loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+
+  - name: Define vm
+    community.libvirt.virt:
+      command: define
+      xml: "{{ lookup('template', 'vm-template.xml.j2') }}"
+    when: "_vm_name not in existing_vms.list_vms and vm_state == 'running'"
+    vars:
+      _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+    loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+
+
+- name: Ensure VM is started
+  community.libvirt.virt:
+    name: "{{ _vm_name }}"
+    state: "{{ vm_state }}"
+  register: vm_start_results
+  until: "vm_start_results is success"
+  retries: 15
+  delay: 2
+  vars:
+    _vm_name: "{{ vm_name }}{{ _vm_suffix|ternary(item, '') }}"
+  loop: "{{ range(1, _vm_count|int, 1 ) | list }}"
+
+- name: Ensure temporary file is deleted
+  file:
+    path: "{{ image_pool_dir }}/{{ base_image_name }}"
+    state: absent
+  when: cleanup_tmp | bool
+

@@ -6,4 +6,5 @@ export ANSIBLE_GALAXY_CACHE_DIR=$PRJ_DIR/tmp/galaxy_cache
 export ANSIBLE_GALAXY_TOKEN_PATH=$PRJ_DIR/tmp/galaxy_token
 export ANSIBLE_PERSISTENT_CONTROL_PATH_DIR=$PRJ_DIR/tmp/pc
 export ANSIBLE_DEFAULT_LOCAL_TMP=$PRJ_DIR/tmp
+export  ANSIBLE_INVENTORY=$PRJ_DIR/inventory
 . $PRJ_DIR/.venv/bin/activate

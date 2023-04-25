@@ -1,0 +1,87 @@
+
+# VRRP configuration: {{ keepalived_vrrp_name }}
+################################################
+
+
+# Check Scripts
+vrrp_script check_{{ keepalived_vrrp_name }} {
+	script		"{{ keepalived_vrrp_check_script }}"	# cheaper than pidof
+	interval	{{ keepalived_vrrp_check_interval }}	# check every n seconds
+	timeout		{{ keepalived_vrrp_check_timout }}	# script considered failed after 'timeout' seconds
+	weight		{{ keepalived_vrrp_check_weight }}	# weight of this check
+	fall		{{ keepalived_vrrp_check_fall }}	# required number of failures for KO switch
+	rise		{{ keepalived_vrrp_check_rise }}	# required number of successes for OK switch
+}
+
+{% if keepalived_vrrp_trigger_file == True %}
+# Disable trigger file check
+vrrp_script	check_{{ keepalived_vrrp_name }}_trigger {
+	script		"/usr/local/lib/check_keepalived_vrrp_trigger {{ keepalived_vrrp_name }} /var/tmp/keepalived_{{ keepalived_vrrp_name }}"
+	interval	{{ keepalived_vrrp_check_interval }}
+	timeout		{{ keepalived_vrrp_check_timout }}
+	weight		254
+	fall		1
+	rise		1
+}{% endif %}
+
+# VRRP definition
+vrrp_instance {{ keepalived_vrrp_name }} {
+
+    # Base setup
+	state			{{ keepalived_vrrp_state.upper() }}
+	interface		{{ keepalived_vrrp_interface }}
+	virtual_router_id	{{ keepalived_vrrp_virtual_router_id }}
+	{% if keepalived_vrrp_priority is defined %}priority		{{ keepalived_vrrp_priority }}
+	{% else %}{% if keepalived_vrrp_state == "master" %}priority		100 
+	{% else %}priority		90{% endif %}{% endif %}
+	advert_int		1
+	delay_loop		5
+	{% if keepalived_vrrp_nopreempt == True %}nopreempt
+	preempt_delay	{{ keepalived_vrrp_preempt_delay }}{% endif %}
+
+	{% if keepalived_vrrp_auth_type is undefined or keepalived_vrrp_auth == False %}
+	# No security enabled for VRRP protocol ...
+	{% elif keepalived_vrrp_auth|lower == 'pass' %}
+	# Secure VRRP protocol
+	authentication {
+		auth_type	PASS
+		auth_pass	{{ keepalived_vrrp_auth_pass }}
+	}
+	{% elif keepalived_vrrp_auth|lower == 'ah' %}
+	# Secure VRRP protocol
+	authentication {
+		auth_type	AH
+		auth_pass	{{ keepalived_vrrp_auth_pass }}
+	}
+	{% endif %}
+
+	# Keepalived will go to FAULT state if any of these go down.
+	track_interface {
+		{{ keepalived_vrrp_interface }}
+	}
+
+{% if keepalived_vrrp_ansible_group is defined and keepalived_vrrp_ansible_group|length > 1 %}
+	# Avoid VRRP multicast and force VRRP trafic to specific IPs
+	unicast_src_ip	{{ ansible_ssh_host }}
+	unicast_peer	{
+{% for i in keepalived_vrrp_ansible_group %}{% if i != inventory_hostname_short %}
+		# {{ i }}
+		{{ hostvars[i].ansible_ssh_host }}
+{% endif %}{% endfor %}
+	}
+{% endif %}
+
+        # IP to manage
+	virtual_ipaddress {
+		{{ keepalived_vrrp_ip }}/{{ keepalived_vrrp_netmask }} dev {{ keepalived_vrrp_interface }} label {{ keepalived_vrrp_interface }}:{{ keepalived_vrrp_name }}
+	}
+
+        # Check script
+	track_script {
+		check_{{ keepalived_vrrp_name }}{% if keepalived_vrrp_trigger_file == True %}
+		check_{{ keepalived_vrrp_name }}_trigger{% endif %}
+	}
+
+	notify	"/usr/local/lib/keepalived_notify"
+}
+

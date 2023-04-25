@@ -1,0 +1,100 @@
+
+
+- name: Deploys VM based on cloud image
+  hosts: infra_keepalived
+    #hosts: test_keepalived1
+  gather_facts: yes
+  become: yes
+  tags:
+    - keepalived
+  vars:
+
+
+  tasks:
+
+    #    - name: "Deploy instances"
+    #      debug:
+    #        msg: "Hello"
+    #
+    #    - name: "Deploy instances"
+    #      ping:
+    #
+    
+    - name: "Install keepalived"
+      include_role:
+        name: ansible-role-keepalived-base
+
+    - name: "Install keepalived VRRP"
+      include_role:
+        name: ansible-role-keepalived-vrrp
+      vars:
+        keepalived_vrrp_name: web
+        keepalived_vrrp_virtual_router_id: 10
+
+        keepalived_vrrp_interface: ens3
+        keepalived_vrrp_ip: 192.168.100.20
+        keepalived_vrrp_netmask: 24
+
+    - name: Install load balancing
+      tags:
+        - loadbalance
+      copy:
+        dest: /etc/keepalived/conf.d/lb_web.conf
+        content: |2
+          virtual_server 192.168.100.20 80 {
+            delay_loop 60 # time between checks, in seconds
+            lb_algo rr    # load balancing algorithm
+            lb_kind DR    # load balancing type: Direct Routing in this case
+            protocol TCP
+            persistence_timeout 60 # client to real-server mappings will be maintained for at least 60 seconds after a connection is terminated
+
+            # Real Server A
+            real_server 192.168.100.146 80 {
+                    weight 100 # used to influence the load balancing algorithm
+                    # real server check mechanism (this can be changed to other types of checking including custom scripts)
+                    # in this case, if a TCP connection cannot be established to the real server ip:port, then it is
+                    # removed from the pool
+                    TCP_CHECK {
+                            connect_timeout 6
+                    }
+            }
+
+            # Real Server B
+            real_server 192.168.100.202 80 {
+                    weight 100
+                    TCP_CHECK {
+                            connect_timeout 6
+                    }
+            }
+            real_server 192.168.100.211 80 {
+                    weight 100
+                    TCP_CHECK {
+                            connect_timeout 6
+                    }
+            }
+          }
+
+
+
+- name: Deploy application
+  hosts: infra_apache
+    #hosts: test_keepalived1
+  gather_facts: yes
+  become: yes
+  tags:
+    - apache
+
+  tasks:
+
+    - name: Install httpd
+      package:
+        name:
+          - apache2
+
+    - name: Install default app
+      copy:
+        dest: /var/www/html/index.html
+        content: "Hellow World on {{ ansible_hostname }}"
+
+
+

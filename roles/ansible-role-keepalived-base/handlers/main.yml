@@ -1,0 +1,16 @@
+---
+
+- name: Reload Systemd
+  command: /usr/bin/systemctl daemon-reload
+
+- name: Restart keepalived
+  service: 
+    name: keepalived 
+    state: restarted
+
+- name: Start keepalived
+  service: 
+    name: keepalived 
+    state: started
+    enabled: yes
+

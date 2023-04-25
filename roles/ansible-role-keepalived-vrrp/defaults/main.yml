@@ -1,0 +1,40 @@
+---
+
+# Ansible group
+keepalived_vrrp_ansible_group: "{{ play_host }}"
+
+# VRRP configuration
+#keepalived_vrrp_name: web
+#keepalived_vrrp_virtual_router_id: 10
+#keepalived_vrrp_state: "{{ ( inventory_hostname in groups[keepalived_vrrp_ansible_group]|first ) | ternary('master','backup') }}"
+
+# Ip configuration
+keepalived_vrrp_interface: eth0
+keepalived_vrrp_auth: no
+keepalived_vrrp_auth_pass: my_super_password
+#keepalived_vrrp_ip: 10.0.42.10
+#keepalived_vrrp_netmask: 24
+keepalived_vrrp_nopreempt: no
+keepalived_vrrp_preempt_delay: 0
+
+# Check script
+#keepalived_vrrp_check_script_template:
+
+keepalived_vrrp_check_script: "killall -0 keepalived"
+keepalived_vrrp_check_interval: 3
+keepalived_vrrp_check_fall: 2
+keepalived_vrrp_check_rise: 2
+keepalived_vrrp_check_weight: 2
+keepalived_vrrp_check_timout: 10
+
+
+# Notifications
+keepalived_vrrp_notify_master:
+keepalived_vrrp_notify_backup:
+keepalived_vrrp_notify_fault:
+keepalived_vrrp_notify:
+
+# Trigger file
+keepalived_vrrp_trigger_file: yes
+
+
